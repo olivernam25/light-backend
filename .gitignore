@@ -1,0 +1,14 @@
+# Chặn thư mục node_modules ở bất kỳ cấp nào (Front và Back)
+**/node_modules/
+
+# Chặn file cấu hình môi trường chứa mật khẩu/database bí mật
+**/.env
+**/.env.local
+
+# Chặn toàn bộ thư mục build của ESP32 (Thư mục này siêu nặng và tự sinh ra khi biên dịch)
+**/test/build/
+**/test/sdkconfig.old
+
+# Các file rác của hệ điều hành hoặc editor
+**/.DS_Store
+**/.vscode/ipch/

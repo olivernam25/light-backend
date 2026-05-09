@@ -1,0 +1,24 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.openOcdConfigs": [
+        "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target/esp32.cfg"
+    ],
+    "idf.portWin": "COM5",
+    "idf.currentSetup": "C:/Espressif/frameworks/esp-idf-v5.5.3/",
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32"
+    },
+    "espIdf.customEnvVars": {
+        "ESP_IDF_MONITOR_DTR": "1",
+        "ESP_IDF_MONITOR_RTS": "1"
+    },
+    "idf.flashBaudRate": "115200",
+    "clangd.path": "C:\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+    "clangd.arguments": [
+        "--background-index",
+        "--query-driver=**",
+        "--compile-commands-dir=c:\\Users\\Admin\\Documents\\TDH\\test\\build"
+    ],
+    "idf.flashType": "UART"
+}
