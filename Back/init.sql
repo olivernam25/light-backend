@@ -30,5 +30,5 @@ INSERT INTO lux_data (time, lux) VALUES
   (NOW() - INTERVAL 20 SECOND, 1180),
   (NOW() - INTERVAL 15 SECOND, 1240),
   (NOW() - INTERVAL 10 SECOND, 1300),
-  (NOW() - INTERVAL 5 SECOND,  1260),
-  (NOW(),                       1240);
+  (NOW() - INTERVAL 5 SECOND,  130),
+  (NOW(),                       100);

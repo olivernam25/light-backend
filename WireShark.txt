@@ -1,0 +1,212 @@
+#include <stdio.h>
+#include "driver/i2c.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <string.h>
+
+#include "esp_wifi.h"
+#include "esp_event.h"
+#include "nvs_flash.h"
+#include "esp_crt_bundle.h"
+#include "esp_netif.h"
+
+#include "esp_http_client.h"
+#include "freertos/event_groups.h"
+
+#define SDA 21
+#define SCL 22
+#define BH1750_ADDR 0x23
+
+#define MODE_HIGH_1 0x10
+
+#define WIFI_SSID "tmp"
+#define WIFI_PASS "22446688"
+
+#define WIFI_CONNECTED_BIT BIT0
+
+static EventGroupHandle_t wifi_event_group;
+static esp_netif_t *sta_netif = NULL; // Biến lưu trữ network interface để cấu hình IP
+
+static void wifi_event_handler(
+    void *arg,
+    esp_event_base_t event_base,
+    int32_t event_id,
+    void *event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
+    {
+        esp_wifi_connect();
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED)
+    {
+        // 1. Khi kết nối vật lý thành công, lập tức dừng DHCP Client để gán IP tĩnh
+        esp_netif_dhcpc_stop(sta_netif);
+
+        // 2. Gán IP tĩnh khớp với dải Hotspot trong CMD của bạn (192.168.137.x)
+        esp_netif_ip_info_t ip_info;
+        IP4_ADDR(&ip_info.ip, 192, 168, 137, 80);     // IP tĩnh cấp cho ESP32
+        IP4_ADDR(&ip_info.gw, 192, 168, 137, 1);      // Gateway lấy chính xác từ "IPv4 Address" của Wi-Fi 4 trong ảnh
+        IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0); // Subnet mask mặc định
+        esp_netif_set_ip_info(sta_netif, &ip_info);
+
+        // 3. Gán DNS để ESP32 phân giải được tên miền Render (onrender.com)
+        esp_netif_dns_info_t dns;
+        IP4_ADDR(&dns.ip.u_addr.ip4, 8, 8, 8, 8); // Sử dụng DNS Google
+        dns.ip.type = ESP_IPADDR_TYPE_V4;
+        esp_netif_set_dns_info(sta_netif, ESP_NETIF_DNS_MAIN, &dns);
+
+        printf("Static IP applied successfully on connection!\n");
+    }
+    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
+    {
+        printf("Disconnected from AP. Retrying...\n");
+        esp_wifi_connect();
+        xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+        printf("ESP32 Connected! IP Address: " IPSTR "\n", IP2STR(&event->ip_info.ip));
+        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+}
+
+void wifi_init()
+{
+    wifi_event_group = xEventGroupCreate();
+
+    nvs_flash_init();
+    esp_netif_init();
+    esp_event_loop_create_default();
+
+    // Khởi tạo interface STA mặc định và gán cho biến toàn cục
+    sta_netif = esp_netif_create_default_wifi_sta();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&cfg);
+
+    esp_event_handler_instance_register(
+        WIFI_EVENT,
+        ESP_EVENT_ANY_ID,
+        &wifi_event_handler,
+        NULL,
+        NULL);
+
+    esp_event_handler_instance_register(
+        IP_EVENT,
+        IP_EVENT_STA_GOT_IP,
+        &wifi_event_handler,
+        NULL,
+        NULL);
+
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASS,
+            /* Tự động kích hoạt tính năng PMF (Protected Management Frames) để tương thích
+               hoàn toàn với chế độ bảo mật WPA2/WPA3 của Windows Hotspot */
+            .pmf_cfg = {
+                .capable = true,
+                .required = false},
+        },
+    };
+
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+
+    esp_wifi_start();
+
+    xEventGroupWaitBits(
+        wifi_event_group,
+        WIFI_CONNECTED_BIT,
+        pdFALSE,
+        pdTRUE,
+        portMAX_DELAY);
+
+    printf("WiFi connected & ready to transmit data\n");
+}
+
+void send_json(const char *json)
+{
+    esp_http_client_config_t config = {
+        .url = "https://bh1750-lightsensor-backend.onrender.com/data",
+        .timeout_ms = 15000,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    esp_http_client_set_method(client, HTTP_METHOD_POST);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+    esp_http_client_set_header(client, "Connection", "close");
+    esp_http_client_set_post_field(client, json, strlen(json));
+
+    esp_err_t err = esp_http_client_perform(client);
+
+    if (err == ESP_OK)
+    {
+        int status = esp_http_client_get_status_code(client);
+        printf("HTTP Status = %d\n", status);
+    }
+    else
+    {
+        printf("HTTP request failed: %s\n", esp_err_to_name(err));
+    }
+
+    esp_http_client_cleanup(client);
+}
+
+void app_main()
+{
+    i2c_config_t config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = SDA,
+        .scl_io_num = SCL,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 100000};
+
+    i2c_param_config(I2C_NUM_0, &config);
+    i2c_driver_install(I2C_NUM_0, config.mode, 0, 0, 0);
+
+    wifi_init();
+
+    while (1)
+    {
+        uint8_t cmd = MODE_HIGH_1;
+
+        i2c_master_write_to_device(
+            I2C_NUM_0,
+            BH1750_ADDR,
+            &cmd,
+            1,
+            1000);
+
+        vTaskDelay(pdMS_TO_TICKS(180));
+
+        uint8_t data[2];
+
+        i2c_master_read_from_device(
+            I2C_NUM_0,
+            BH1750_ADDR,
+            data,
+            2,
+            1000);
+
+        int raw = (data[0] << 8) | data[1];
+        float lux1 = raw / 1.2;
+        int lux = (int)lux1;
+
+        char json[64];
+        snprintf(
+            json,
+            sizeof(json),
+            "{\"lux\": %d}",
+            lux);
+
+        printf("Sending lux: %d\n", lux);
+        send_json(json);
+
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+}

@@ -16,8 +16,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
-
-const API_URL = 'http://localhost:8800';
+const API_URL = 'http://192.168.110.36:8800';
 
 type ThemeConfig = {
   mode: 'light' | 'dark';
