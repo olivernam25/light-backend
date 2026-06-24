@@ -1,26 +1,21 @@
 {
   "name": "back",
   "version": "1.0.0",
-  "description": "��#\u0000 \u0000l\u0000i\u0000g\u0000h\u0000t\u0000s\u0000e\u0000n\u0000s\u0000o\u0000r\u0000\r\u0000 \u0000",
+  "description": "Light Sensor Backend",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.9",
-    "@mui/material": "^7.3.9",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mysql2": "^3.20.0",
-    "recharts": "^3.8.1"
+    "mysql2": "^3.20.0"
   },
   "devDependencies": {}
 }
